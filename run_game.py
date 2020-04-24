@@ -44,6 +44,9 @@ class Engine:
         # we want to play the sound of cells in the trace list
         self.trace_list = ["0"]
 
+        # a dead cell cannot be reinvented
+        self.dead_cells = []
+
     def get_cell_by_name(self, name):
         # return the cell associated with the given name
         # return None if no match
@@ -55,14 +58,24 @@ class Engine:
                     return c
         return None
 
+    def _make_loc_key(self, x, y):
+        return f"{x}:{y}"
+
+    def _decode_loc_key(self, s):
+        x, y = int(s.split(":")[0]), int(s.split(":")[1])
+        return x, y
+
     def initilize_cells(self):
         for i in range(self.num_of_cells):
             # initialize cells
             # randomly generate initial location
             x, y = random.randint(0, self.N - 1), random.randint(0, self.N - 1)
             # print(x,y)
-            c = cell.Cell((x, y), self.N, name=str(i))
-            k = f"{x}:{y}"
+            # initiaze a value
+            value = random.randint(0,10)
+            c = cell.Cell((x, y), self.N, value=value, name=str(i))
+
+            k = self._make_loc_key(x,y)
             if k not in self.location_map:
                 self.location_map[k] = []
             # append the cell to the location map
@@ -77,7 +90,7 @@ class Engine:
         for l in locs:
             loc_color = min(255, sum([c.color for c in self.location_map[l]]))
             # decode the key object
-            x, y = self._decode_location_str(l)
+            x, y = self._decode_loc_key(l)
             # allow customized color values for each cell
             grid[x][y] = loc_color
         return grid
@@ -86,62 +99,131 @@ class Engine:
     #     x, y = int(l.split(":")[0]), int(l.split(":")[1])
     #     return x,y
 
-    def _decode_location_str(self, s):
-        x, y = int(s.split(":")[0]), int(s.split(":")[1])
-        return x, y
 
-    def update_frame(self, frameNum):
-        # move all cells --> update the current dictionary
-        new_loc_map = {}
-        for k in self.location_map:
-            for c in self.location_map[k]:
-                # access to each cell and get a move '
-                new_loc = c.get_next_move()
+    def _global_get_next_move(self, frameNum):
+        # can also try 2d normal map to add to the probability
+        # with global information, sample the next move for each cell, store next move to each cell
+        # go through the cell list
+        new_location_map = {}
+        prob = {"UP":0.0,
+                "DOWN":0.0,
+                "LEFT":0.0,
+                "RIGHT":0.0}
+        MOVES = ["UP","DOWN","LEFT","RIGHT"]
 
-                # check for potential evolution or life time of the cell? --> if the cell reaches the end of its life, ternminate it
+        def clear_prob(prob):
+            for k in prob:
+                prob[k] = 0
+            return prob
 
-                # print(f"new loc is {new_loc}")
-                new_k = f"{new_loc[0]}:{new_loc[1]}"
-                if new_k not in new_loc_map:
-                    new_loc_map[new_k] = []
-                # else:
-                #     # there are intersections, perform intersection logic for the cell in the map --> make it pairwise operation ?
-                #     pass
-                # move the cell there
-                new_loc_map[new_k].append(c)
-        # update the loc map for the engine
-        self.location_map = new_loc_map
-        # print(f"new loc  map is {new_loc_map}")
-        # print(f"updated map is {self.location_map}")
+        def normalize_prob(prob):
+            total = sum(prob.values())
+            if total ==0:
+                # the case that nothing is set
+                for k in prob:
+                    prob[k] = 0.25
+            else:
+                for k in prob:
+                    prob[k] = prob[k]/total
+            return prob
 
-        # now check for any overlap -->
-        # empty the merge location buffer
-        self.merge_locations = []
+        def get_next_move(prob,x,y):
+            next_pos = np.random.choice(MOVES, 1 , p=list(prob.values()))
+            print(next_pos)
+            x_new, y_new = x,y
+            if next_pos == "UP":
+                y_new-=1
+            elif next_pos == "DOWN":
+                y_new+=1
+            elif next_pos == "LEFT":
+                x_new -=1
+            elif next_pos == "RIGHT":
+                x_new+=1
+            return x_new, y_new
 
+        ############## clean dead cells --> dead cells can still add to the location weight
+        for cell in [c for l in self.location_map.values() for c in l]:
+            print(self.location_map.values())
+
+            if cell.life_time <= frameNum:
+                print(f"cell {cell.name} dies on round {frameNum}")
+                # the cell should be dead
+                cell.alive = False
+                self.dead_cells.append(cell)
+                continue
+            else:
+                # the cell is still alive
+                x,y = cell.loc
+                #update sampling probability, cells in same loc won't add to the probability
+                for k in self.location_map:
+                    # get total value in this position
+                    total_value = sum([c.value for c in self.location_map[k]])
+                    xp,yp = self._decode_loc_key(k)
+                    # compute probability
+                    if xp > x:
+                        prob['DOWN']+=total_value
+                    elif xp<x:
+                        prob['UP']+=total_value
+                    # check left and right
+                    if yp > y:
+                        prob['RIGHT']+=total_value
+                    if yp < y:
+                        prob['LEFT']+=total_value
+                prob = normalize_prob(prob)
+                # sample the next move
+
+                x_new, y_new = get_next_move(prob,x,y)
+                while not (0<=x_new<self.N and 0<=y_new<self.N):
+                    x_new, y_new = get_next_move(prob,x,y)
+
+                cell.next_loc = (x_new, y_new)
+                # can create a new self.locaiton map
+                new_k = self._make_loc_key(x_new, y_new)
+                if  new_k not in new_location_map:
+                    new_location_map[new_k] = []
+                new_location_map[new_k].append(cell)
+
+        # update location map
+        self.location_map = new_location_map
+
+
+
+    def _global_check_overlapping(self, frameNum):
+        # we have the new merge manager here, dead cells are no longer shown
         for k in self.location_map:
             if len(self.location_map[k]) >= 2:
                 # call the merge manage to update the cells
                 # python oeprations will be in place
-                self.mm.merge(self.location_map[k])
-                x, y = self._decode_location_str(k)
+                self.mm.merge(frameNum, self.location_map[k])
+                x,y = self._decode_loc_key(k)
                 self.merge_locations.append([x, y])
         # there are two cells in this
         # randomly select two and make a merge?
         # should give birth to a new cell here? -->let the merge manager control
 
+
+
+
+    def _engine_update_frame(self, frameNum):
+        # move all cells
+        self._global_get_next_move(frameNum)
+        # use the merge function
+        self._global_check_overlapping(frameNum)
+
         # overlap_cells = []
-        if frameNum == 100:
-            # play the sound
-            for tname in self.trace_list:
-                traced_cell = self.get_cell_by_name(tname)
-                # play all sound
-                print(f"play traced cell for {tname}, history is {traced_cell.history}")
-                sound = traced_cell.sound.export_sound()
+        # if frameNum == 100:
+        #     # play the sound
+        #     for tname in self.trace_list:
+        #         traced_cell = self.get_cell_by_name(tname)
+        #         # play all sound
+        #         print(f"play traced cell for {tname}, history is {traced_cell.history}")
+        #         sound = traced_cell.sound.export_sound()
+        # play back the board after it is over
 
     def animation_update(self, frameNum, img, grid, ax):
         # update the current canvas by running evolution for each object
         # call to update the current frame
-        self.update_frame(frameNum)
+        self._engine_update_frame(frameNum)
         # get the new grid
         new_grid = self.get_grid_from_loc_map()
         # print(f"updated frame is {new_grid}")
@@ -165,6 +247,7 @@ class Engine:
         ax.imshow(new_grid, interpolation="nearest")
 
         return (img,)
+
 
     def play_music(self, path):
         """ The engine will handle music player --> cell just save the music and

@@ -83,7 +83,9 @@ class Sound:
 
 
 class CellHistoryTracker:
-    """ Tracks the encoutner history of a cell
+    """
+        Tracks the encoutner history of a cell
+
     """
 
     def __init__(self):
@@ -93,7 +95,7 @@ class CellHistoryTracker:
     def total_number_of_encounter(self):
         return len(self.log)
 
-    def add_encounter(self, frame_number, other_cell):
+    def add(self, frame_number, other_cell):
         # add the other cell's name to history
         if frame_number not in self.log:
             self.log[frame_number] = []
@@ -129,26 +131,53 @@ class Cell:
         # store the sound
         self.sound = Sound()
         # some nice propeties to have --> a cell shouldn't be alive forever
-        self.life_time = 10000
+        self._life_time = 10000
         self.alive = True
-        self.loc = loc
+        self._loc = loc
         # this is the size of the board
         self.N = N
         # self.last_move_prob = np.array([1/3.0,1/3.0,1/3.0])
         # should add some momentum to the game
         # need to store the history of encounter for this cell
-        self.name = name
-        self.value = value
-        self.encounter_history = CellHistoryTracker()
-
+        self._name = name
+        self._value = value
+        self.history_tracker = CellHistoryTracker()
+        self._next_loc = None
         if not color:
             # random generate a color from [0..255]
             self.color = random.randint(125, 255)
         else:
             self.color = color
 
-    def get_next_move(self):
-        # instead let the board compute next state 
+    @property
+    def life_time(self):
+        return self._life_time
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def value(self):
+        return self._value
+
+    @property
+    def loc(self):
+        return self._loc
+
+    @property
+    def next_loc(self):
+        return self._next_loc
+
+    @next_loc.setter
+    def next_loc(self, next_loc:Tuple[int,int]):
+        # check if the next move is bounded
+        if not 0<=next_loc[0]<=self.N and 0<=next_loc[1]<=self.N:
+            raise ValueError(f"next move {next_loc} is out of bound in a {self.N} board")
+        self._next_loc = next_loc
+
+    def get_next_loc(self):
+        # instead let the board compute next state
         # delegate the next move generation to the cell it self with the knowledge of the board?
         # randomly samole a direction with the knowledge of the board
         # just mvoe four dirs
@@ -158,8 +187,8 @@ class Cell:
 
         def move_valid(xm, ym):
             # check if the input move is valid
-            x = self.loc[0] + xm
-            y = self.loc[1] + ym
+            x = self._loc[0] + xm
+            y = self._loc[1] + ym
             return 0 <= x < self.N and 0 <= y < self.N
 
         move = np.random.choice(MOVES, 2, replace=True)
@@ -168,11 +197,11 @@ class Cell:
             move = np.random.choice(MOVES, 2, replace=True)
 
         # update last probability
-        new_loc = (self.loc[0] + move[0], self.loc[1] + move[1])
+        new_loc = (self._loc[0] + move[0], self._loc[1] + move[1])
         # update the current location
-        self.loc = new_loc
+        self._loc = new_loc
 
-        return self.loc
+        return self._loc
 
     def evolve(self):
         # the cell object should know how and when to evolve
@@ -180,7 +209,7 @@ class Cell:
 
     @property
     def history(self):
-        return self.encounter_history
+        return self.history_tracker
 
 
 """
@@ -193,7 +222,7 @@ class Merge_Manager:
         # define some hyper parameters here
         pass
 
-    def merge(self, cell_list):
+    def merge(self, frame_num, cell_list):
         # merge two cells according to the propeties of both cells
         # read in all the sound files and each would get a portion from the others?
         # do not make it on squared, make it a constant cost --> it is okay for now to be slow but can optimize later
@@ -217,7 +246,7 @@ class Merge_Manager:
                 cur_sound = cur_sound.overlay(other_sound, pos, loop=False)
 
                 ## add to the encounter list
-                cur_cell.encounter_history.append(other_cell.name)
+                cur_cell.history_tracker.add(frame_num, other_cell)
             # update the current sound
             cur_cell.sound.set_modified_sound(cur_sound)
 
@@ -245,7 +274,7 @@ def _test_sound_merge_between_two_cells():
 if __name__ == "__main__":
     # do some testing here to see things work as expected
     # c = Cell((0,0),100)
-    # print(c.get_next_move())
+    # print(c.get_next_loc())
     # rand_prob = np.random.rand(2)
     # print(rand_prob)
     _test_sound_merge_between_two_cells()
