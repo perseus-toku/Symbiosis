@@ -29,8 +29,6 @@ PROCESSED_SOUND_PATH = "processed_sound_inputs"
 
 
 # some good reference for pydub is https://medium.com/better-programming/simple-audio-processing-in-python-with-pydub-c3a217dabf11
-
-
 def play_music(path):
     # define stream chunk
     chunk = 1024
