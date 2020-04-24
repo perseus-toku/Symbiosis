@@ -40,7 +40,7 @@ class Merge_Manager:
                 cur_sound = cur_sound.overlay(other_sound, pos, loop=False)
 
                 ## add to the encounter list
-                cur_cell.history_tracker.add(frame_num, other_cell)
+                cur_cell.history_tracker.add_encounter(frame_num, other_cell)
             # update the current sound
             cur_cell.sound.set_modified_sound(cur_sound)
 
@@ -49,4 +49,4 @@ class Merge_Manager:
 
 
     def merge_algorithm1(self):
-        pass 
+        pass

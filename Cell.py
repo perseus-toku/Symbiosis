@@ -22,18 +22,25 @@ class CellHistoryTracker:
     """
 
     def __init__(self):
-        self.log = {}
+        self.encounter_log = {}
+        self.position_log = []
 
     @property
     def total_number_of_encounter(self):
-        return len(self.log)
+        return len(self.encounter_log)
 
-    def add(self, frame_number, other_cell):
+    def add_encounter(self, frame_number, other_cell):
         # add the other cell's name to history
-        if frame_number not in self.log:
-            self.log[frame_number] = []
+        if frame_number not in self.encounter_log:
+            self.encounter_log[frame_number] = []
         # add to log
-        self.log[frame_number].append(other_cell.name)
+        self.encounter_log[frame_number].append(other_cell.name)
+
+    def add_pos(self, loc):
+        self.position_log.append(loc)
+
+    def get_position_log(self):
+        return self.position_log
 
     def print_log(self):
         pass
@@ -66,8 +73,8 @@ class Cell(object):
         # some nice propeties to have --> a cell shouldn't be alive forever
         self._life_time = life_time
         self.alive = True
-        self._loc = loc
         # this is the size of the board
+        self._loc = loc 
         self.N = N
         # self.last_move_prob = np.array([1/3.0,1/3.0,1/3.0])
         # should add some momentum to the game
@@ -98,43 +105,42 @@ class Cell(object):
     def loc(self):
         return self._loc
 
-    @property
-    def next_loc(self):
-        return self._next_loc
-
-    @next_loc.setter
-    def next_loc(self, next_loc:Tuple[int,int]):
+    @loc.setter
+    def loc(self, next_loc:Tuple[int,int]):
         # check if the next move is bounded
         if not 0<=next_loc[0]<=self.N and 0<=next_loc[1]<=self.N:
             raise ValueError(f"next move {next_loc} is out of bound in a {self.N} board")
-        self._next_loc = next_loc
+        # record the moves this cell take
+        self._loc = next_loc
+        # add to the position log
+        self.history_tracker.add_pos(next_loc)
 
-    def get_next_loc(self):
-        # instead let the board compute next state
-        # delegate the next move generation to the cell it self with the knowledge of the board?
-        # randomly samole a direction with the knowledge of the board
-        # just mvoe four dirs
-        MOVES = [1, 0, -1]
-        # get some drifts to the next step --> make it random noise
-        # update last probabily with momentum
-
-        def move_valid(xm, ym):
-            # check if the input move is valid
-            x = self._loc[0] + xm
-            y = self._loc[1] + ym
-            return 0 <= x < self.N and 0 <= y < self.N
-
-        move = np.random.choice(MOVES, 2, replace=True)
-        while not move_valid(move[0], move[1]):
-            # sampel a new move from here
-            move = np.random.choice(MOVES, 2, replace=True)
-
-        # update last probability
-        new_loc = (self._loc[0] + move[0], self._loc[1] + move[1])
-        # update the current location
-        self._loc = new_loc
-
-        return self._loc
+    # def get_next_loc(self):
+    #     # instead let the board compute next state
+    #     # delegate the next move generation to the cell it self with the knowledge of the board?
+    #     # randomly samole a direction with the knowledge of the board
+    #     # just mvoe four dirs
+    #     MOVES = [1, 0, -1]
+    #     # get some drifts to the next step --> make it random noise
+    #     # update last probabily with momentum
+    #
+    #     def move_valid(xm, ym):
+    #         # check if the input move is valid
+    #         x = self._loc[0] + xm
+    #         y = self._loc[1] + ym
+    #         return 0 <= x < self.N and 0 <= y < self.N
+    #
+    #     move = np.random.choice(MOVES, 2, replace=True)
+    #     while not move_valid(move[0], move[1]):
+    #         # sampel a new move from here
+    #         move = np.random.choice(MOVES, 2, replace=True)
+    #
+    #     # update last probability
+    #     new_loc = (self._loc[0] + move[0], self._loc[1] + move[1])
+    #     # update the current location
+    #     self._loc = new_loc
+    #
+    #     return self._loc
 
     def evolve(self):
         # the cell object should know how and when to evolve

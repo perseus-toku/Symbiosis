@@ -11,14 +11,25 @@ from Cell import Cell
 from Sound import Sound
 from MergeManager import Merge_Manager
 
+import logging
+# just print to the terminal for now
+logging.basicConfig(level=logging.DEBUG)
+
+
 # some very useful sources
 # http://jakevdp.github.io/blog/2013/08/07/conways-game-of-life/
 
 ## create a visulizaiton image for the game
 
-
 # some plt configurations
 plt.style.use("dark_background")
+
+# create a wrapper for logging utilities
+def args_to_string(*argv):
+    s = []
+    for arg in argv:
+        s.append(str(arg))
+    return " ".join(s)
 
 
 class Engine:
@@ -32,7 +43,7 @@ class Engine:
 
     """
 
-    def __init__(self, num_of_cells=1, N=5, run_without_display=False):
+    def __init__(self, num_of_cells=1, N=5, run_without_display=False, universe_life_time=100):
         self.num_of_cells = num_of_cells
         # maintaining a list of cells ???
         # and run update one by one ?
@@ -53,6 +64,7 @@ class Engine:
         self.dead_cells = []
         self.output_dir = "engine_outputs"
         self.run_without_display = run_without_display
+        self.universe_life_time = universe_life_time
 
     def get_cell_by_name(self, name):
         # return the cell associated with the given name
@@ -77,12 +89,12 @@ class Engine:
             # initialize cells
             # randomly generate initial location
             x, y = random.randint(0, self.N - 1), random.randint(0, self.N - 1)
-            # print(x,y)
+            # logging.debug(x,y)
             # initiaze a value
             value = random.randint(0, 10)
             if i == 0:
                 value = 100
-            # find a way to initialize life time reasonably 
+            # find a way to initialize life time reasonably
             life_time = random.randint(0, 1000)
             c = Cell((x, y), self.N, value=value, name=str(i), life_time = life_time)
 
@@ -93,6 +105,7 @@ class Engine:
             self.location_map[k].append(c)
 
     def get_grid_from_loc_map(self):
+        # grid is arranged by row and then column
         # generate the grid from location map, simply creating a 2d grid
         # we jsut need the keys
         locs = self.location_map.keys()
@@ -132,25 +145,32 @@ class Engine:
             else:
                 for k in prob:
                     prob[k] = prob[k] / total
+
+            # also inject in some randomness
+            random_ratio = 0.8
+            for k in prob:
+                prob[k] = (1-random_ratio)*prob[k] + random_ratio*0.25
+
             return prob
 
         def get_next_move(prob, x, y):
             next_pos = np.random.choice(MOVES, 1, p=list(prob.values()))
+            # copy the original posiiton
             x_new, y_new = x, y
             if next_pos == "UP":
-                y_new -= 1
-            elif next_pos == "DOWN":
-                y_new += 1
-            elif next_pos == "LEFT":
                 x_new -= 1
-            elif next_pos == "RIGHT":
+            elif next_pos == "DOWN":
                 x_new += 1
+            elif next_pos == "LEFT":
+                y_new -= 1
+            elif next_pos == "RIGHT":
+                y_new += 1
             return x_new, y_new
 
         ############## clean dead cells --> dead cells can still add to the location weight
         for cell in [c for l in self.location_map.values() for c in l]:
             if cell.life_time <= frameNum:
-                print(f"cell {cell.name} dies on round {frameNum}")
+                logging.debug(f"cell {cell.name} dies on round {frameNum}")
                 # the cell should be dead
                 cell.alive = False
                 self.dead_cells.append(cell)
@@ -160,9 +180,11 @@ class Engine:
                 x, y = cell.loc
                 # update sampling probability, cells in same loc won't add to the probability
                 for k in self.location_map:
+                    xp, yp = self._decode_loc_key(k)
+
                     # get total value in this position
                     total_value = sum([c.value for c in self.location_map[k]])
-                    xp, yp = self._decode_loc_key(k)
+
                     # compute probability
                     if xp > x:
                         prob["DOWN"] += total_value
@@ -171,7 +193,7 @@ class Engine:
                     # check left and right
                     if yp > y:
                         prob["RIGHT"] += total_value
-                    if yp < y:
+                    elif yp < y:
                         prob["LEFT"] += total_value
                 prob = normalize_prob(prob)
                 # sample the next move
@@ -180,15 +202,20 @@ class Engine:
                 while not (0 <= x_new < self.N and 0 <= y_new < self.N):
                     x_new, y_new = get_next_move(prob, x, y)
 
-                cell.next_loc = (x_new, y_new)
+                logging.debug(args_to_string(prob, x_new, y_new))
+                # update the location of the map
+                cell.loc = (x_new, y_new)
                 # can create a new self.locaiton map
                 new_k = self._make_loc_key(x_new, y_new)
                 if new_k not in new_location_map:
                     new_location_map[new_k] = []
                 new_location_map[new_k].append(cell)
+            logging.debug("---"*10)
+
 
         # update location map
         self.location_map = new_location_map
+        logging.debug(f"loc map  {self.location_map}")
 
     def _global_check_overlapping(self, frameNum):
         # we have the new merge manager here, dead cells are no longer shown
@@ -204,6 +231,15 @@ class Engine:
         # there are two cells in this
         # randomly select two and make a merge?
         # should give birth to a new cell here? -->let the merge manager control
+
+    def _global_finalize(self, frameNum):
+        # do what ever clean up that we have to do here
+        # logging.debug the position log
+        for k in self.location_map:
+            for c in self.location_map[k]:
+                pos_log = c.history_tracker.get_position_log()
+                logging.debug(f"name is {c.name}-- pos log is {pos_log}")
+
 
     def _global_save_current_frame(self, frameNum):
         # it is import to have a method to save all the running sounds in this frame
@@ -226,16 +262,9 @@ class Engine:
         # use the merge function
         self._global_check_overlapping(frameNum)
 
-        # overlap_cells = []
-        if frameNum == 10:
-            self._global_save_current_frame(frameNum)
-        #     # play the sound
-        #     for tname in self.trace_list:
-        #         traced_cell = self.get_cell_by_name(tname)
-        #         # play all sound
-        #         print(f"play traced cell for {tname}, history is {traced_cell.history}")
-        #         sound = traced_cell.sound.export_sound()
-        # play back the board after it is over
+        # finalize on the last frame
+        if frameNum == self.universe_life_time-1:
+            self._global_finalize(frameNum)
 
     def animation_update(self, frameNum, img, grid, ax):
         # update the current canvas by running evolution for each object
@@ -243,7 +272,7 @@ class Engine:
         self._engine_update_frame(frameNum)
         # get the new grid
         new_grid = self.get_grid_from_loc_map()
-        # print(f"updated frame is {new_grid}")
+        # logging.debug(f"updated frame is {new_grid}")
         img.set_data(new_grid)
 
         # somehow, we have to clear the ax and draw again --> the animation process is quite manual
@@ -260,7 +289,6 @@ class Engine:
         # ax.get_xaxis().set_visible(False)
         #
         ax.set_title("WELCOME TO THE SYMBIOSIS WORLD")
-
         ax.imshow(new_grid, interpolation="nearest")
 
         return (img,)
@@ -274,7 +302,7 @@ class Engine:
         # define stream chunk
         chunk = 1024
         # open a wav format music
-        print(f"open path:{path}")
+        logging.debug(f"open path:{path}")
         f = wave.open(path, "rb")
         # instantiate PyAudio
         p = pyaudio.PyAudio()
@@ -306,7 +334,7 @@ class Engine:
         updateInterval = 100
         # initialize the grid here
         grid = self.get_grid_from_loc_map()
-        # print(f"initial grid is : {grid}")
+        # logging.debug(f"initial grid is : {grid}")
 
         fig, ax = plt.subplots(figsize=(6, 6))
         fig.set_tight_layout(True)
@@ -319,16 +347,16 @@ class Engine:
             fig,
             self.animation_update,
             fargs=(img, grid, ax),
-            frames=200,
+            frames=self.universe_life_time,
             interval=updateInterval,
             blit=False,
             save_count=50,
             repeat=False,
         )
         # plt.grid(True)
-        plt.show()
+        plt.show(block=True)
 
 
 if __name__ == "__main__":
-    e = Engine(2, 10)
+    e = Engine(3, 10, run_without_display=True, universe_life_time=100)
     e.run()
