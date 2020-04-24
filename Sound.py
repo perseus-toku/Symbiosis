@@ -28,8 +28,9 @@ class Sound:
         else:
             raise ValueError("unknown selection method")
 
+        # should load the sound
         # try not to load in the sound in the beginning, load the information dynamically
-        self.loaded_sound = None
+        self.loaded_sound = self.try_load_sound()
 
     def __len__(self):
         # read in the sound object and get the length from it
@@ -49,14 +50,13 @@ class Sound:
 
     def try_load_sound(self):
         # load the sound if it is not already done
-        if not self.loaded_sound:
-            self.loaded_sound = AudioSegment.from_wav(self.sound_file)
-            # truncate the sound file if necessary
-            if len(self.loaded_sound) > self.max_duration * 1000:
-                # truncate -- > randomly select a part
-                s = random.randint(0, len(self.loaded_sound) - self.max_duration * 1000)
-                self.loaded_sound = self.loaded_sound[s : s + self.max_duration * 1000]
-        return self.loaded_sound
+        loaded_sound = AudioSegment.from_wav(self.sound_file)
+        # truncate the sound file if necessary
+        if len(loaded_sound) > self.max_duration * 1000:
+            # truncate -- > randomly select a part
+            s = random.randint(0, len(loaded_sound) - self.max_duration * 1000)
+            loaded_sound = loaded_sound[s : s + self.max_duration * 1000]
+        return loaded_sound
 
     def play_sound(self):
         # use pyaudio funcitons to play the sound --> use functions from util.py
@@ -68,7 +68,6 @@ class Sound:
     def play(self):
         ### should be able to play the sound without any io operations
         # loaded sound is an audio segment
-        self.try_load_sound()
         play(self.loaded_sound)
 
     def save_sound(self, path):
@@ -79,5 +78,6 @@ class Sound:
 
 
 if __name__ == "__main__":
-    pass
+    s = Sound()
+
     # run some quick test on sound

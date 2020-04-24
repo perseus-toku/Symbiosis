@@ -59,12 +59,12 @@ class Cell(object):
     """
 
     # loc: a tuple describing the x,y location of the cell
-    def __init__(self, loc:Tuple[int,int], N: int, value: int, color:int=None, size=1, name:str=None):
+    def __init__(self, loc:Tuple[int,int], N: int, value: int, color:int=None, size=1, name:str=None, life_time=100):
         # what properties to have here ?
         # store the sound
         self.sound = Sound()
         # some nice propeties to have --> a cell shouldn't be alive forever
-        self._life_time = 10000
+        self._life_time = life_time
         self.alive = True
         self._loc = loc
         # this is the size of the board

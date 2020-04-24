@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -31,7 +32,7 @@ class Engine:
 
     """
 
-    def __init__(self, num_of_cells=1, N=5):
+    def __init__(self, num_of_cells=1, N=5, run_without_display=False):
         self.num_of_cells = num_of_cells
         # maintaining a list of cells ???
         # and run update one by one ?
@@ -51,6 +52,7 @@ class Engine:
         # a dead cell cannot be reinvented
         self.dead_cells = []
         self.output_dir = "engine_outputs"
+        self.run_without_display = run_without_display
 
     def get_cell_by_name(self, name):
         # return the cell associated with the given name
@@ -77,10 +79,14 @@ class Engine:
             x, y = random.randint(0, self.N - 1), random.randint(0, self.N - 1)
             # print(x,y)
             # initiaze a value
-            value = random.randint(0,10)
-            c = Cell((x, y), self.N, value=value, name=str(i))
+            value = random.randint(0, 10)
+            if i == 0:
+                value = 100
+            # find a way to initialize life time reasonably 
+            life_time = random.randint(0, 1000)
+            c = Cell((x, y), self.N, value=value, name=str(i), life_time = life_time)
 
-            k = self._make_loc_key(x,y)
+            k = self._make_loc_key(x, y)
             if k not in self.location_map:
                 self.location_map[k] = []
             # append the cell to the location map
@@ -104,17 +110,13 @@ class Engine:
     #     x, y = int(l.split(":")[0]), int(l.split(":")[1])
     #     return x,y
 
-
     def _global_get_next_move(self, frameNum):
         # can also try 2d normal map to add to the probability
         # with global information, sample the next move for each cell, store next move to each cell
         # go through the cell list
         new_location_map = {}
-        prob = {"UP":0.0,
-                "DOWN":0.0,
-                "LEFT":0.0,
-                "RIGHT":0.0}
-        MOVES = ["UP","DOWN","LEFT","RIGHT"]
+        prob = {"UP": 0.0, "DOWN": 0.0, "LEFT": 0.0, "RIGHT": 0.0}
+        MOVES = ["UP", "DOWN", "LEFT", "RIGHT"]
 
         def clear_prob(prob):
             for k in prob:
@@ -123,33 +125,30 @@ class Engine:
 
         def normalize_prob(prob):
             total = sum(prob.values())
-            if total ==0:
+            if total == 0:
                 # the case that nothing is set
                 for k in prob:
                     prob[k] = 0.25
             else:
                 for k in prob:
-                    prob[k] = prob[k]/total
+                    prob[k] = prob[k] / total
             return prob
 
-        def get_next_move(prob,x,y):
-            next_pos = np.random.choice(MOVES, 1 , p=list(prob.values()))
-            print(next_pos)
-            x_new, y_new = x,y
+        def get_next_move(prob, x, y):
+            next_pos = np.random.choice(MOVES, 1, p=list(prob.values()))
+            x_new, y_new = x, y
             if next_pos == "UP":
-                y_new-=1
+                y_new -= 1
             elif next_pos == "DOWN":
-                y_new+=1
+                y_new += 1
             elif next_pos == "LEFT":
-                x_new -=1
+                x_new -= 1
             elif next_pos == "RIGHT":
-                x_new+=1
+                x_new += 1
             return x_new, y_new
 
         ############## clean dead cells --> dead cells can still add to the location weight
         for cell in [c for l in self.location_map.values() for c in l]:
-            print(self.location_map.values())
-
             if cell.life_time <= frameNum:
                 print(f"cell {cell.name} dies on round {frameNum}")
                 # the cell should be dead
@@ -158,48 +157,49 @@ class Engine:
                 continue
             else:
                 # the cell is still alive
-                x,y = cell.loc
-                #update sampling probability, cells in same loc won't add to the probability
+                x, y = cell.loc
+                # update sampling probability, cells in same loc won't add to the probability
                 for k in self.location_map:
                     # get total value in this position
                     total_value = sum([c.value for c in self.location_map[k]])
-                    xp,yp = self._decode_loc_key(k)
+                    xp, yp = self._decode_loc_key(k)
                     # compute probability
                     if xp > x:
-                        prob['DOWN']+=total_value
-                    elif xp<x:
-                        prob['UP']+=total_value
+                        prob["DOWN"] += total_value
+                    elif xp < x:
+                        prob["UP"] += total_value
                     # check left and right
                     if yp > y:
-                        prob['RIGHT']+=total_value
+                        prob["RIGHT"] += total_value
                     if yp < y:
-                        prob['LEFT']+=total_value
+                        prob["LEFT"] += total_value
                 prob = normalize_prob(prob)
                 # sample the next move
 
-                x_new, y_new = get_next_move(prob,x,y)
-                while not (0<=x_new<self.N and 0<=y_new<self.N):
-                    x_new, y_new = get_next_move(prob,x,y)
+                x_new, y_new = get_next_move(prob, x, y)
+                while not (0 <= x_new < self.N and 0 <= y_new < self.N):
+                    x_new, y_new = get_next_move(prob, x, y)
 
                 cell.next_loc = (x_new, y_new)
                 # can create a new self.locaiton map
                 new_k = self._make_loc_key(x_new, y_new)
-                if  new_k not in new_location_map:
+                if new_k not in new_location_map:
                     new_location_map[new_k] = []
                 new_location_map[new_k].append(cell)
 
         # update location map
         self.location_map = new_location_map
 
-
     def _global_check_overlapping(self, frameNum):
         # we have the new merge manager here, dead cells are no longer shown
+        # clear the merge locations
+        self.merge_locations = []
         for k in self.location_map:
             if len(self.location_map[k]) >= 2:
                 # call the merge manage to update the cells
                 # python oeprations will be in place
                 self.mm.merge(frameNum, self.location_map[k])
-                x,y = self._decode_loc_key(k)
+                x, y = self._decode_loc_key(k)
                 self.merge_locations.append([x, y])
         # there are two cells in this
         # randomly select two and make a merge?
@@ -212,14 +212,13 @@ class Engine:
             shutil.rmtree(self.output_dir)
         os.mkdir(self.output_dir)
         log_path = os.path.join(self.output_dir, "log.txt")
-        with open(log_path) as f:
+        with open(log_path, "w") as f:
             f.write("log")
         for k in self.location_map:
             for c in self.location_map[k]:
                 # get the sound
-                fname = os.path.join(self.output_dir, c.name+".wav")
+                fname = os.path.join(self.output_dir, c.name + ".wav")
                 c.save_sound_to_path(fname)
-
 
     def _engine_update_frame(self, frameNum):
         # move all cells
@@ -228,7 +227,7 @@ class Engine:
         self._global_check_overlapping(frameNum)
 
         # overlap_cells = []
-        if frameNum == 100:
+        if frameNum == 10:
             self._global_save_current_frame(frameNum)
         #     # play the sound
         #     for tname in self.trace_list:
@@ -265,7 +264,6 @@ class Engine:
         ax.imshow(new_grid, interpolation="nearest")
 
         return (img,)
-
 
     def play_music(self, path):
         """ The engine will handle music player --> cell just save the music and
@@ -332,5 +330,5 @@ class Engine:
 
 
 if __name__ == "__main__":
-    e = Engine(10, 10)
+    e = Engine(2, 10)
     e.run()

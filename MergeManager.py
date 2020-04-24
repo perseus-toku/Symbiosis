@@ -46,3 +46,7 @@ class Merge_Manager:
 
     def merge_sound(self, sound_a, sound_b):
         pass
+
+
+    def merge_algorithm1(self):
+        pass 
