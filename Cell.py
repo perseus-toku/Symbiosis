@@ -1,3 +1,4 @@
+from typing import Dict, Tuple, Sequence
 import numpy as np
 import os
 
@@ -52,8 +53,8 @@ class Sound:
             # truncate the sound file if necessary
             if len(self.loaded_sound) > self.max_duration * 1000:
                 # truncate -- > randomly select a part
-                s = random.randint(0, len(self.loaded_sound)-self.max_duration * 1000)
-                self.loaded_sound = self.loaded_sound[s: s+self.max_duration * 1000]
+                s = random.randint(0, len(self.loaded_sound) - self.max_duration * 1000)
+                self.loaded_sound = self.loaded_sound[s : s + self.max_duration * 1000]
         return self.loaded_sound
 
     def play_sound(self):
@@ -76,12 +77,31 @@ class Sound:
         play(self.loaded_sound)
 
     def export_sound(self, path=None):
-        # save the sound to an output directory for play back --> then let a different function handle play back 
+        # save the sound to an output directory for play back --> then let a different function handle play back
         output_file_name = "check_sound.wav"
         self.loaded_sound.export(output_file_name, format="wav")
 
 
+class CellHistoryTracker:
+    """ Tracks the encoutner history of a cell
+    """
 
+    def __init__(self):
+        self.log = {}
+
+    @property
+    def total_number_of_encounter(self):
+        return len(self.log)
+
+    def add_encounter(self, frame_number, other_cell):
+        # add the other cell's name to history
+        if frame_number not in self.log:
+            self.log[frame_number] = []
+        # add to log
+        self.log[frame_number].append(other_cell.name)
+
+    def print_log(self):
+        pass
 
 
 class Cell:
@@ -92,11 +112,19 @@ class Cell:
 
         The first step would be to create a single canvas(a grid) where the cells can be shown and can potentially interact
 
+        Properties
+        -----------
+            sound: every cell has a sound object
+            life_time: number of frames the cell can stay alive
+            alive: indicator to show if the cell is alive --> dead cells are recollected
+            N: canvas size
+            color: color to display for the cell
+            value: the value of existence of the cell
 
     """
 
     # loc: a tuple describing the x,y location of the cell
-    def __init__(self, loc, N, color=None, size=1, name=None):
+    def __init__(self, loc:Tuple[int,int], N: int, value: int, color:int=None, size=1, name:str=None):
         # what properties to have here ?
         # store the sound
         self.sound = Sound()
@@ -106,6 +134,12 @@ class Cell:
         self.loc = loc
         # this is the size of the board
         self.N = N
+        # self.last_move_prob = np.array([1/3.0,1/3.0,1/3.0])
+        # should add some momentum to the game
+        # need to store the history of encounter for this cell
+        self.name = name
+        self.value = value
+        self.encounter_history = CellHistoryTracker()
 
         if not color:
             # random generate a color from [0..255]
@@ -113,13 +147,8 @@ class Cell:
         else:
             self.color = color
 
-        # self.last_move_prob = np.array([1/3.0,1/3.0,1/3.0])
-        # should add some momentum to the game
-        # need to store the history of encounter for this cell
-        self.encounter_history = []
-        self.name = name
-
     def get_next_move(self):
+        # instead let the board compute next state 
         # delegate the next move generation to the cell it self with the knowledge of the board?
         # randomly samole a direction with the knowledge of the board
         # just mvoe four dirs
@@ -152,6 +181,7 @@ class Cell:
     @property
     def history(self):
         return self.encounter_history
+
 
 """
     mm controls how two cells merge together
@@ -197,8 +227,8 @@ class Merge_Manager:
 
 def _test_sound_merge_between_two_cells():
     # initialize two cells
-    A = Cell((0, 0), 10)
-    B = Cell((0, 0), 10)
+    A = Cell((0, 0), 10, 10)
+    B = Cell((0, 0), 10, 10)
     print(A.sound.sound_file)
     print(B.sound.sound_file)
 
