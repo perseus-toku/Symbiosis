@@ -1,32 +1,36 @@
+import os
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import random
-import Cell as cell
+
+# custom import
+from Cell import Cell
+from Sound import Sound
+from MergeManager import Merge_Manager
 
 # some very useful sources
 # http://jakevdp.github.io/blog/2013/08/07/conways-game-of-life/
 
 ## create a visulizaiton image for the game
 
-ON = 0
-OFF = 255
-
 
 # some plt configurations
 plt.style.use("dark_background")
 
 
-"""
-    The engine is the driver to run the game it initializes the state and keeps track of the progress
-    # should also have access to the current state of the game
-
-
-    # actually save the file so that the main loop is non blocking and the music playing will be handled by a different folder
-    # for example, do not play in memory, save the audio files and play back in disk
-
-"""
 class Engine:
+    """
+        The engine is the driver to run the game it initializes the state and keeps track of the progress
+        # should also have access to the current state of the game
+
+
+        # actually save the file so that the main loop is non blocking and the music playing will be handled by a different folder
+        # for example, do not play in memory, save the audio files and play back in disk
+
+    """
+
     def __init__(self, num_of_cells=1, N=5):
         self.num_of_cells = num_of_cells
         # maintaining a list of cells ???
@@ -39,13 +43,14 @@ class Engine:
         self.merge_locations = []
 
         self.N = N
-        self.mm = cell.Merge_Manager()
+        self.mm = Merge_Manager()
 
         # we want to play the sound of cells in the trace list
         self.trace_list = ["0"]
 
         # a dead cell cannot be reinvented
         self.dead_cells = []
+        self.output_dir = "engine_outputs"
 
     def get_cell_by_name(self, name):
         # return the cell associated with the given name
@@ -73,7 +78,7 @@ class Engine:
             # print(x,y)
             # initiaze a value
             value = random.randint(0,10)
-            c = cell.Cell((x, y), self.N, value=value, name=str(i))
+            c = Cell((x, y), self.N, value=value, name=str(i))
 
             k = self._make_loc_key(x,y)
             if k not in self.location_map:
@@ -187,7 +192,6 @@ class Engine:
         self.location_map = new_location_map
 
 
-
     def _global_check_overlapping(self, frameNum):
         # we have the new merge manager here, dead cells are no longer shown
         for k in self.location_map:
@@ -201,7 +205,20 @@ class Engine:
         # randomly select two and make a merge?
         # should give birth to a new cell here? -->let the merge manager control
 
-
+    def _global_save_current_frame(self, frameNum):
+        # it is import to have a method to save all the running sounds in this frame
+        # recreate output directory
+        if os.path.exists(self.output_dir):
+            shutil.rmtree(self.output_dir)
+        os.mkdir(self.output_dir)
+        log_path = os.path.join(self.output_dir, "log.txt")
+        with open(log_path) as f:
+            f.write("log")
+        for k in self.location_map:
+            for c in self.location_map[k]:
+                # get the sound
+                fname = os.path.join(self.output_dir, c.name+".wav")
+                c.save_sound_to_path(fname)
 
 
     def _engine_update_frame(self, frameNum):
@@ -211,7 +228,8 @@ class Engine:
         self._global_check_overlapping(frameNum)
 
         # overlap_cells = []
-        # if frameNum == 100:
+        if frameNum == 100:
+            self._global_save_current_frame(frameNum)
         #     # play the sound
         #     for tname in self.trace_list:
         #         traced_cell = self.get_cell_by_name(tname)
