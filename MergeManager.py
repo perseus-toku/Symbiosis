@@ -7,6 +7,7 @@ from pydub.playback import play
 import pyaudio
 import random
 from pydub.playback import play
+import logging
 
 class Merge_Manager:
     """
@@ -20,7 +21,12 @@ class Merge_Manager:
         # merge two cells according to the propeties of both cells
         # read in all the sound files and each would get a portion from the others?
         # do not make it on squared, make it a constant cost --> it is okay for now to be slow but can optimize later
-        print("merge cell")
+
+
+        # select based on value --> highest value choose first
+        # p (x,y)-> prob to merge
+
+
         n = len(cell_list)
         for i in range(n):
             cur_cell = cell_list[i]
@@ -43,6 +49,8 @@ class Merge_Manager:
                 cur_cell.history_tracker.add_encounter(frame_num, other_cell)
             # update the current sound
             cur_cell.sound.set_modified_sound(cur_sound)
+
+    # returns a list of new born cells, [] if no merge happens 
 
     def merge_sound(self, sound_a, sound_b):
         pass

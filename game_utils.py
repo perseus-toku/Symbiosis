@@ -3,7 +3,7 @@ from PIL import Image, ImageTk
 import os
 import sys
 import random
-
+import math
 
 # use pyaudio
 import wave
@@ -11,6 +11,9 @@ import pydub
 from pydub import AudioSegment
 from pydub.playback import play
 import pyaudio
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 
 if (
@@ -98,10 +101,19 @@ def process_sound_inputs():
     ]
     for file in os.listdir(RAW_SOUND_PATH):
         if file not in processed_files and "wav" in file:
-            # need to process file first
             orig_path = os.path.join(RAW_SOUND_PATH, file)
             dest_path = os.path.join(PROCESSED_SOUND_PATH, file)
-            cmd = f"sox {orig_path} -b 16 -e signed-integer {dest_path}"
+            # if the orig path has a name problem --> fix it
+            if " "  in orig_path:
+                # this will lead to a syntax error ->
+                print(f"fix name error {orig_path}")
+                s = orig_path.index("(")
+                e = orig_path.index(")")
+                new_name = "".join(orig_path.split())
+                # rename orig_path
+                os.rename(orig_path, new_name)
+                orig_path = new_name
+            cmd = f"sox \'{orig_path}\' -b 16 -e signed-integer \'{dest_path}\'"
             print(cmd)
             os.system(cmd)
     print("complete processing raw sound inputs")
@@ -127,40 +139,40 @@ def select_waves():
     return selected
 
 
-def showPIL(pilImage):
-    pilImage = Image.open(pilImage)
-    root = tkinter.Tk()
-    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-    root.overrideredirect(1)
-    root.geometry("%dx%d+0+0" % (w, h))
-    root.focus_set()
-    root.bind("<Escape>", lambda e: (e.widget.withdraw(), e.widget.quit()))
-    canvas = tkinter.Canvas(root, width=w, height=h)
-    canvas.pack()
-    canvas.configure(background="black")
-    imgWidth, imgHeight = pilImage.size
-    if imgWidth > w or imgHeight > h:
-        ratio = min(w / imgWidth, h / imgHeight)
-        imgWidth = int(imgWidth * ratio)
-        imgHeight = int(imgHeight * ratio)
-        pilImage = pilImage.resize((imgWidth, imgHeight), Image.ANTIALIAS)
-    print("got to this step")
-    image = ImageTk.PhotoImage(pilImage.convert("RGB"))
-
-    imagesprite = canvas.create_image(w / 2, h / 2, image=image)
-
-    gmail = tkinter.Label(root, image=image)
-    gmail.pack()
-
-    print("showing image")
-    root.mainloop()
 
 
-### should start a web server to show the constructed scenes
+# --------------------------------------------- Animation Utils ---------------------------------------------
+def getImage(path, h=None,w=None, zoom=1):
+    # make the image sqaured
+    # img = plt.imread(path, 0)
+    img = Image.open(path)
+    # if resize
+    img = img.resize((30,30),Image.ANTIALIAS)
+    # img.putalpha(128)
+
+
+    return OffsetImage(img, zoom=zoom)
+
+def scatter_im(x,y,ax,fig,N,im_path,zoom=1):
+    # overlay with the images
+    # w,h = get_ax_size(ax,fig)
+    # # calculate the cell width
+    # m = min(w,h)
+    # cw,ch = math.floor(w/N), math.floor(h/N)
+    ab = AnnotationBbox(getImage(im_path, zoom=zoom), (y, x), frameon=True)
+    ax.add_artist(ab)
+
+def get_ax_size(ax, fig):
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    width, height = bbox.width, bbox.height
+    width *= fig.dpi
+    height *= fig.dpi
+    return width, height
+
 
 
 if __name__ == "__main__":
     process_sound_inputs()
-    sel_waves = select_waves()
-    join_wavs(sel_waves)
-    play_music("modified_audio.wav")
+    # sel_waves = select_waves()
+    # join_wavs(sel_waves)
+    # play_music("modified_audio.wav")

@@ -3,6 +3,7 @@ import shutil
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import random
 
@@ -10,10 +11,11 @@ import random
 from Cell import Cell
 from Sound import Sound
 from MergeManager import Merge_Manager
+from game_utils import process_sound_inputs, scatter_im
 
 import logging
 # just print to the terminal for now
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 # some very useful sources
@@ -66,6 +68,11 @@ class Engine:
         self.run_without_display = run_without_display
         self.universe_life_time = universe_life_time
 
+        # process all sound
+        # gloabl move parameters
+        self.prob_not_moving = 0.2
+
+
     def get_cell_by_name(self, name):
         # return the cell associated with the given name
         # return None if no match
@@ -92,10 +99,11 @@ class Engine:
             # logging.debug(x,y)
             # initiaze a value
             value = random.randint(0, 10)
-            if i == 0:
-                value = 100
+            # if i == 0:
+            #     value = 100
             # find a way to initialize life time reasonably
-            life_time = random.randint(0, 1000)
+            # initialize based on the universal time
+            life_time = random.randint(0, self.universe_life_time*2)
             c = Cell((x, y), self.N, value=value, name=str(i), life_time = life_time)
 
             k = self._make_loc_key(x, y)
@@ -173,37 +181,44 @@ class Engine:
                 logging.debug(f"cell {cell.name} dies on round {frameNum}")
                 # the cell should be dead
                 cell.alive = False
-                self.dead_cells.append(cell)
+                self.dead_cells.append([frameNum,cell])
                 continue
             else:
                 # the cell is still alive
                 x, y = cell.loc
-                # update sampling probability, cells in same loc won't add to the probability
-                for k in self.location_map:
-                    xp, yp = self._decode_loc_key(k)
+                # get a probability of move or not to move
+                s = np.random.uniform(0,1)
+                if s <= self.prob_not_moving:
+                    # do not move this cell
+                    x_new, y_new = x,y
+                else:
+                    #move cell
+                    # update sampling probability, cells in same loc won't add to the probability
+                    for k in self.location_map:
+                        xp, yp = self._decode_loc_key(k)
 
-                    # get total value in this position
-                    total_value = sum([c.value for c in self.location_map[k]])
+                        # get total value in this position
+                        total_value = sum([c.value for c in self.location_map[k]])
 
-                    # compute probability
-                    if xp > x:
-                        prob["DOWN"] += total_value
-                    elif xp < x:
-                        prob["UP"] += total_value
-                    # check left and right
-                    if yp > y:
-                        prob["RIGHT"] += total_value
-                    elif yp < y:
-                        prob["LEFT"] += total_value
-                prob = normalize_prob(prob)
-                # sample the next move
+                        # compute probability
+                        if xp > x:
+                            prob["DOWN"] += total_value
+                        elif xp < x:
+                            prob["UP"] += total_value
+                        # check left and right
+                        if yp > y:
+                            prob["RIGHT"] += total_value
+                        elif yp < y:
+                            prob["LEFT"] += total_value
+                    prob = normalize_prob(prob)
+                    # sample the next move
 
-                x_new, y_new = get_next_move(prob, x, y)
-                while not (0 <= x_new < self.N and 0 <= y_new < self.N):
                     x_new, y_new = get_next_move(prob, x, y)
+                    while not (0 <= x_new < self.N and 0 <= y_new < self.N):
+                        x_new, y_new = get_next_move(prob, x, y)
 
-                logging.debug(args_to_string(prob, x_new, y_new))
-                # update the location of the map
+                        logging.debug(args_to_string(prob, x_new, y_new))
+                    # update the location of the map
                 cell.loc = (x_new, y_new)
                 # can create a new self.locaiton map
                 new_k = self._make_loc_key(x_new, y_new)
@@ -240,6 +255,11 @@ class Engine:
                 pos_log = c.history_tracker.get_position_log()
                 logging.debug(f"name is {c.name}-- pos log is {pos_log}")
 
+        ### save the output
+        logging.info("save running cells information")
+        self._global_save_current_frame(frameNum)
+
+        # output global information --> statistics: #merge, #cell, #cell dies
 
     def _global_save_current_frame(self, frameNum):
         # it is import to have a method to save all the running sounds in this frame
@@ -266,9 +286,8 @@ class Engine:
         if frameNum == self.universe_life_time-1:
             self._global_finalize(frameNum)
 
-    def animation_update(self, frameNum, img, grid, ax):
+    def animation_update(self, frameNum, img, grid, ax, fig):
         # update the current canvas by running evolution for each object
-        # call to update the current frame
         self._engine_update_frame(frameNum)
         # get the new grid
         new_grid = self.get_grid_from_loc_map()
@@ -280,16 +299,30 @@ class Engine:
         ax.clear()
         ax.set_xlabel(frameNum)
 
-        # draw the merge locations
-        for x, y in self.merge_locations:
-            ax.scatter(y, x, marker="*", c="r", s=500)
-
         # turn off the values on the axis
         # ax.get_yaxis().set_visible(False)
         # ax.get_xaxis().set_visible(False)
         #
         ax.set_title("WELCOME TO THE SYMBIOSIS WORLD")
         ax.imshow(new_grid, interpolation="nearest")
+
+        ### overlay the monster image
+        # for k in self.location_map:
+        #     # draw the shapes
+        #     x,y = self._decode_loc_key(k)
+        #     scatter_im(x,y,ax,fig,self.N,"m1.png",zoom=1)
+
+        ## ---------- merge locations ----------
+        for x, y in self.merge_locations:
+            ax.scatter(y, x, marker="*", c="r", s=500)
+
+        ## ---------- show dead cells as cross ----------
+        for f,c in self.dead_cells:
+            # only show for 7 frames
+            x,y = c.loc
+            if frameNum-f <= 7:
+                ax.scatter(y, x, marker="+", c="b", s=500)
+
 
         return (img,)
 
@@ -335,8 +368,7 @@ class Engine:
         # initialize the grid here
         grid = self.get_grid_from_loc_map()
         # logging.debug(f"initial grid is : {grid}")
-
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(6, 6), dpi=100)
         fig.set_tight_layout(True)
         # fig.set_title("symbiosis")
 
@@ -346,7 +378,7 @@ class Engine:
         ani = animation.FuncAnimation(
             fig,
             self.animation_update,
-            fargs=(img, grid, ax),
+            fargs=(img, grid, ax, fig),
             frames=self.universe_life_time,
             interval=updateInterval,
             blit=False,
@@ -358,5 +390,8 @@ class Engine:
 
 
 if __name__ == "__main__":
-    e = Engine(3, 10, run_without_display=True, universe_life_time=100)
+    # setup the sound inputs
+    logging.info("processing input sound folder")
+    process_sound_inputs()
+    e = Engine(2, 30, run_without_display=True, universe_life_time=200)
     e.run()
