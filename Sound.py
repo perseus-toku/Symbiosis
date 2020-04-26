@@ -44,7 +44,7 @@ class Sound:
         for file in os.listdir(self.sound_dir):
             if "wav" in file:
                 files.append(os.path.join(self.sound_dir, file))
-                selected = np.random.choice(files, 1, replace=False)
+        selected = np.random.choice(files, 1, replace=False)
         # do not load here, only load dynamically
         return selected[0]
 
@@ -79,5 +79,6 @@ class Sound:
 
 if __name__ == "__main__":
     s = Sound()
+    print(s.rand_get_a_sound())
 
     # run some quick test on sound

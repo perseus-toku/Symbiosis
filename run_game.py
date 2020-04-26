@@ -240,9 +240,15 @@ class Engine:
             if len(self.location_map[k]) >= 2:
                 # call the merge manage to update the cells
                 # python oeprations will be in place
-                self.mm.merge(frameNum, self.location_map[k])
+                children = self.mm.merge(frameNum, self.location_map[k])
                 x, y = self._decode_loc_key(k)
                 self.merge_locations.append([x, y])
+
+                # add children to the current cell
+                for c in children:
+                    # set the location of the children
+                    c.loc = (x,y)
+                    self.location_map[k].append(c)
         # there are two cells in this
         # randomly select two and make a merge?
         # should give birth to a new cell here? -->let the merge manager control

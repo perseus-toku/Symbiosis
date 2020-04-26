@@ -25,7 +25,7 @@ class Merge_Manager:
 
         # select based on value --> highest value choose first
         # p (x,y)-> prob to merge
-
+        children = []
 
         n = len(cell_list)
         for i in range(n):
@@ -50,8 +50,9 @@ class Merge_Manager:
             # update the current sound
             cur_cell.sound.set_modified_sound(cur_sound)
 
-    # returns a list of new born cells, [] if no merge happens 
 
+            # returns a list of new born cells, [] if no merge happens
+            return children
     def merge_sound(self, sound_a, sound_b):
         pass
 
