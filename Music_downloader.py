@@ -6,12 +6,17 @@ from typing import List
 import youtube_dl
 import time
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from selenium import webdriver
 import time
 import json
+import numpy as np
 import os
 from pydub import AudioSegment
+
+sns.set_style("whitegrid")
 
 BASE_URL = 'https://freesound.org'
 
@@ -94,7 +99,7 @@ class Catalog_Worker:
 
         # initialize the driver
         self.driver = webdriver.Chrome('./chromedriver')
-
+        self.interval_save_buffer = False
     def get_page_link_with_num(self, num:int):
         assert num >= 0
         return f"https://freesound.org/search/?page={num}#sound"
@@ -144,7 +149,9 @@ class Catalog_Worker:
             with open(CRASH_LOG_PATH, "w") as f:
                 json.dump(self.crash_log, f)
 
-            self.results.extend(buffer)
+            if self.interval_save_buffer:
+                # do not save all information
+                self.results.extend(buffer)
 
 
     def get_sounds_from_html(self, html):
@@ -196,6 +203,7 @@ class Download_Worker:
         chromeOptions.add_experimental_option("prefs",prefs)
         self.driver = webdriver.Chrome(executable_path='./chromedriver', chrome_options=chromeOptions)
 
+    @classmethod
     def read_catalog(self):
         catalog = []
         with open(SOUND_LOG_PATH, "r") as f:
@@ -224,17 +232,37 @@ class Download_Worker:
 
 
 
+def analyze_sound_catalog():
+    cata = Download_Worker.read_catalog()
+    durations = []
+    for c in cata:
+        seconds = c['duration']/1000
+        durations.append(seconds)
+    n = len(durations)
+    mind = min(durations)
+    maxd = max(durations)
+    avgd = np.mean(durations)
+
+    selected_duration = [s for s in durations if s <= 200]
+    print(f"collected {n} sounds, min duration is {mind}s, max duration is {maxd}s, average duration is {avgd}s")
+
+    plt.title("sound catalog length analysis")
+    sns.distplot(selected_duration, kde=False, rug=False);
+    plt.xlabel("duration (seconds)")
+    plt.ylabel("count")
+    # plt.hist(selected_duration)
+    plt.show()
+
+
 if __name__ == "__main__":
     # play_list_link = "https://www.youtube.com/user/dr0alexander"
     # download_link(play_list_link)
-
-    # import requests
-    #
     # url = 'https://freesound.org/people/juanto9889/sounds/414875/download'
     # myfile = requests.get(url)
     # open('test.wav', 'wb').write(myfile.content)
     # exit()
-    dworker = Download_Worker(10)
-    dworker.run()
-    worker = Catalog_Worker(num_pages=1000)
-    worker.run()
+    # dworker = Download_Worker(10)
+    # dworker.run()
+    # worker = Catalog_Worker(num_pages=9735)
+    # worker.run()
+    analyze_sound_catalog()
