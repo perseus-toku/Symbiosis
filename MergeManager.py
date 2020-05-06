@@ -8,6 +8,7 @@ import pyaudio
 import random
 from pydub.playback import play
 import logging
+from copy import deepcopy
 
 class Merge_Manager:
     """
@@ -59,3 +60,205 @@ class Merge_Manager:
 
     def merge_algorithm1(self):
         pass
+
+def merge_algo1(s1,s2):
+    print(len(s1),len(s2))
+    song1 = deepcopy(s1)
+    song2 = deepcopy(s2)
+    if len(song2) < len(song1):
+        # swap to make song1 the shorter one
+        temp = song1
+        song1 = song2
+        song2 = temp
+    # merge the two --> divided to k seconds
+    # merge with the minimum duration
+    l1 = len(song1)
+    l2 = len(song2)
+    # no need to shorten just divide by less units put on top some where
+    # get the shorter one
+    # randomly find a part to start with
+    # find a sequencing part
+    # sample first loc
+    # sample a location for song1
+    pos = random.randint(0,l2-l1)
+    #add padding to song1
+    song2_left = song2[:pos]
+    song2_right = song2[pos+l1:]
+    song2_middle = song2[pos:pos+l1]
+    # merge the middle part
+    assert len(song2_middle) == l1, "song2 middle length incorrect"
+    assert len(song2_left) + len(song2_middle) + len(song2_right) == len(song2), f"{len(song2_left) + len(song2_middle) + len(song2_middle)} != {len(song2)}"
+
+    k = 10
+    # basic unit of division
+    unit_length = l1 // k
+    print(f"unit_length is {unit_length} --> total: {unit_length*k}")
+    # selection basis
+    s = [random.randint(0,3) for i in range(k)]
+    print(s)
+    # divide it to k sequences
+    # creat a new audio segment
+    song3 = None
+
+    # probability to reverse the sound
+    p_reverse = 0.3
+    prob_reverse1 = np.random.uniform(0,1)
+    prob_reverse2 = np.random.uniform(0,1)
+    if prob_reverse1 <= p_reverse:
+        song1 = song1.reverse()
+    if prob_reverse2 <= p_reverse:
+        song2 = song2.reverse()
+
+    max_cross_fade = unit_length // 2
+    for i in range(k):
+        # sample a cross fade
+        cross_fade = random.randint(0, max_cross_fade)
+        # use the first slice
+        six = (i)*unit_length
+        eix = (i+1)*unit_length
+        if s[i] == 0:
+            # we can reverse the sound here
+            if not song3:
+                song3 = song1[six:eix]
+            else:
+                # use cross fade
+                # song3+= song1[six:eix]
+                song3 = song3.append(song1[six:eix],  crossfade = cross_fade)
+        elif s[i] == 1:
+            if not song3:
+                song3 = song2_middle[six:eix]
+            else:
+                # song3+= song2_middle[six:eix]
+                song3 = song3.append(song2_middle[six:eix], crossfade = cross_fade)
+
+        elif s[i]==2:
+            # overlay
+            temp = song1[six:eix].overlay(song2_middle[six:eix], loop=True)
+            if not song3:
+                song3 = temp
+            else:
+                # play(temp)
+                print("before",len(song3), len(temp))
+                song3 = song3.append(temp, crossfade = cross_fade)
+                print("after",len(song3))
+        else:
+            # increase the sample length
+            if not song3:
+                song3 = song1[six:eix].append(song2_middle[six:eix], crossfade = cross_fade)
+            else:
+                song3 = song3.append(song1[six:eix], crossfade = cross_fade).append(song2_middle[six:eix], crossfade = cross_fade)
+    # song3 should stay the same length
+    # assert len(song3) == len(song2_middle), f"output length wrong {len(song3)}, {len(song2_middle)}"
+    # final crossfade parameter
+    final_cf = min(cross_fade, len(song2_left), len(song2_right))//2
+    out_song = song2_left.append(song3, crossfade=final_cf).append(song2_right, crossfade=final_cf)
+    print(len(out_song))
+    print("_"*10)
+    return out_song
+
+
+def load_k_songs(k):
+    sdir = "processed_sound_inputs"
+    files = []
+    for file in os.listdir(sdir):
+        if "wav" in file:
+            files.append(os.path.join(sdir, file))
+    selected = np.random.choice(files, k, replace=False)
+    return selected
+
+# need to make the increase and decrease
+
+
+def algo1_evaluate():
+    max_duration = 30000 # in ms
+    slist = load_k_songs(30)
+    #first load all songs
+    print(slist)
+
+    loaded_s = []
+    for s in slist:
+        song = AudioSegment.from_wav(s)
+        print(len(song)/1000.0)
+        if len(song) > max_duration:
+            song = song[:max_duration]
+        loaded_s.append(song)
+
+    # merge the songs one by one
+    merged_song = loaded_s[0]
+    error_count = 0
+    for s in loaded_s[1:]:
+        try:
+            merged_song = merge_algo1(merged_song,s)
+        except Exception as e:
+            error_count += 1
+            print(f" error encountered --> continue")
+    print(f"encountered {error_count} errors")
+    # add fade in and fade out
+    fade_in_seconds = 2
+    fade_out_seconds = 3
+    merged_song = merged_song.fade_in(fade_in_seconds*1000).fade_out(fade_out_seconds*1000)
+
+    print(f"output length is {merged_song.duration_seconds}")
+    # save the output
+    merged_song.export("merge_algo1.wav", format="wav")
+
+    play(merged_song)
+
+def test_combine_numerous_sougs():
+    sdir = "processed_sound_inputs"
+    files = []
+    for file in os.listdir(sdir):
+        if "wav" in file:
+            files.append(os.path.join(sdir, file))
+    # have a deterministic list of songs
+    duration = 5000
+    songs =[]
+    for s in files:
+        song = AudioSegment.from_wav(s)
+        print(len(song)/1000.0)
+        if len(song) < duration:
+            continue
+        if len(song) > duration:
+            song = song[:duration]
+        songs.append(song)
+
+    basic = songs[0]
+    for s in songs[1:10]:
+        basic = basic.append(s)
+
+    print(len(basic)/1000)
+    play(basic)
+
+def test_overlay_multiple():
+    sdir = "processed_sound_inputs"
+    files = []
+    for file in os.listdir(sdir):
+        if "wav" in file:
+            files.append(os.path.join(sdir, file))
+    # have a deterministic list of songs
+    duration = 5000
+    songs =[]
+    for s in files:
+        song = AudioSegment.from_wav(s)
+        print(len(song)/1000.0)
+        if len(song) < duration:
+            continue
+        if len(song) > duration:
+            song = song[:duration]
+        songs.append(song)
+
+    basic = songs[0]
+    for s in songs[4:10]:
+        basic = basic.overlay(s)
+
+    print(len(basic)/1000)
+    play(basic)
+
+
+
+
+if __name__ == "__main__":
+    # try to see how different merge methods produce
+    s1 = "processed_sound_inputs/animal-market.wav"
+    s2 = "processed_sound_inputs/149196__lmartins__asakusa-religious-cerimony.wav"
+    test_overlay_multiple()

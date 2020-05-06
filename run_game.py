@@ -399,5 +399,5 @@ if __name__ == "__main__":
     # setup the sound inputs
     logging.info("processing input sound folder")
     process_sound_inputs()
-    e = Engine(2, 30, run_without_display=True, universe_life_time=200)
+    e = Engine(10, 30, run_without_display=True, universe_life_time=200)
     e.run()
