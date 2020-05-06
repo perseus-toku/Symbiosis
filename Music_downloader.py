@@ -11,6 +11,7 @@ from selenium import webdriver
 import time
 import json
 import os
+from pydub import AudioSegment
 
 BASE_URL = 'https://freesound.org'
 
@@ -187,7 +188,13 @@ class Download_Worker:
         self.catalog = self.read_catalog()
         print(self.catalog)
 
-        self.driver = webdriver.Chrome('./chromedriver')
+        chromeOptions = webdriver.ChromeOptions()
+        cwd = os.getcwd()
+        out_path = os.path.join(cwd, output_dir)
+        print(f"output path is {output_dir}")
+        prefs = {"download.default_directory" : out_path}
+        chromeOptions.add_experimental_option("prefs",prefs)
+        self.driver = webdriver.Chrome(executable_path='./chromedriver', chrome_options=chromeOptions)
 
     def read_catalog(self):
         catalog = []
@@ -227,14 +234,7 @@ if __name__ == "__main__":
     # myfile = requests.get(url)
     # open('test.wav', 'wb').write(myfile.content)
     # exit()
-    from urllib.request import urlopen
-    mp3file = urlopen("https://freesound.org/people/juanto9889/sounds/414875/download")
-    with open('test.wav','wb') as output:
-        output.write(mp3file.read())
-
-
     dworker = Download_Worker(10)
     dworker.run()
-    exit()
     worker = Catalog_Worker(num_pages=1000)
     worker.run()
