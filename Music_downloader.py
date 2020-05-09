@@ -193,7 +193,6 @@ class Download_Worker:
         self.output_dir = output_dir
         self.num_to_download = num_to_download
         self.catalog = self.read_catalog()
-        print(self.catalog)
 
         chromeOptions = webdriver.ChromeOptions()
         cwd = os.getcwd()
@@ -202,6 +201,12 @@ class Download_Worker:
         prefs = {"download.default_directory" : out_path}
         chromeOptions.add_experimental_option("prefs",prefs)
         self.driver = webdriver.Chrome(executable_path='./chromedriver', chrome_options=chromeOptions)
+
+        #### download configurations
+        self.min_duration = 20000
+        self.max_duration = 30000
+        self.shuffle = False
+
 
     @classmethod
     def read_catalog(self):
@@ -226,7 +231,17 @@ class Download_Worker:
         self.driver.find_element_by_id("id_password").send_keys(user_name)
         self.driver.find_element_by_name("csrfmiddlewaretoken").submit()
 
-        for i,j in enumerate(self.catalog):
+
+        # filter the catalog
+        selected = []
+        for s in self.catalog:
+            duration = s['duration']
+            if self.min_duration <= duration <=self.max_duration:
+                selected.append(s)
+            if len(selected) >= self.num_to_download:
+                break
+
+        for i,j in enumerate(selected):
             link = j['download_link']
             self.driver.get(link)
 
@@ -243,7 +258,9 @@ def analyze_sound_catalog():
     maxd = max(durations)
     avgd = np.mean(durations)
 
-    selected_duration = [s for s in durations if s <= 200]
+    selected_duration = [s for s in durations if 20<=s <= 30]
+    print(len(selected_duration))
+    exit()
     print(f"collected {n} sounds, min duration is {mind}s, max duration is {maxd}s, average duration is {avgd}s")
 
     plt.title("sound catalog length analysis")
@@ -254,6 +271,10 @@ def analyze_sound_catalog():
     plt.show()
 
 
+def remove_duplicates(path):
+    
+
+
 if __name__ == "__main__":
     # play_list_link = "https://www.youtube.com/user/dr0alexander"
     # download_link(play_list_link)
@@ -261,8 +282,8 @@ if __name__ == "__main__":
     # myfile = requests.get(url)
     # open('test.wav', 'wb').write(myfile.content)
     # exit()
-    # dworker = Download_Worker(10)
-    # dworker.run()
+    dworker = Download_Worker(200)
+    dworker.run()
     # worker = Catalog_Worker(num_pages=9735)
     # worker.run()
-    analyze_sound_catalog()
+    # analyze_sound_catalog()

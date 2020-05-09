@@ -169,12 +169,18 @@ def load_k_songs(k):
 # need to make the increase and decrease
 
 
-def algo1_evaluate():
+# make this a simulation
+def algo1_evaluate(cur_id):
+    if not os.path.exists("simulations"):
+        os.mkdir("simulations")
+    new_dir = f"simulations/{cur_id}"
+    if not os.path.exists(new_dir):
+        os.mkdir(new_dir)
+
     max_duration = 30000 # in ms
-    slist = load_k_songs(30)
+    slist = load_k_songs(8)
     #first load all songs
     print(slist)
-
     loaded_s = []
     for s in slist:
         song = AudioSegment.from_wav(s)
@@ -183,12 +189,18 @@ def algo1_evaluate():
             song = song[:max_duration]
         loaded_s.append(song)
 
+
     # merge the songs one by one
     merged_song = loaded_s[0]
     error_count = 0
-    for s in loaded_s[1:]:
+    for i,s in enumerate(loaded_s):
         try:
-            merged_song = merge_algo1(merged_song,s)
+            song_path  = os.path.join(new_dir, f"{i}.wav")
+            if i>0:
+                # only merge after first one
+                merged_song = merge_algo1(merged_song,s)
+                # save every merge
+            merged_song.export(song_path, format="wav")
         except Exception as e:
             error_count += 1
             print(f" error encountered --> continue")
@@ -202,7 +214,7 @@ def algo1_evaluate():
     # save the output
     merged_song.export("merge_algo1.wav", format="wav")
 
-    play(merged_song)
+    # play(merged_song)
 
 def test_combine_numerous_sougs():
     sdir = "processed_sound_inputs"
@@ -259,6 +271,8 @@ def test_overlay_multiple():
 
 if __name__ == "__main__":
     # try to see how different merge methods produce
-    s1 = "processed_sound_inputs/animal-market.wav"
-    s2 = "processed_sound_inputs/149196__lmartins__asakusa-religious-cerimony.wav"
-    test_overlay_multiple()
+    # s1 = "processed_sound_inputs/animal-market.wav"
+    # s2 = "processed_sound_inputs/149196__lmartins__asakusa-religious-cerimony.wav"
+    # test_overlay_multiple()
+
+    algo1_evaluate(5)
