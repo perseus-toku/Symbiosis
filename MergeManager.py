@@ -10,6 +10,8 @@ from pydub.playback import play
 import logging
 from copy import deepcopy
 
+from Music_downloader import Download_Worker
+
 class Merge_Manager:
     """
         mm controls how two cells merge together
@@ -268,6 +270,59 @@ def test_overlay_multiple():
 
 
 
+def load_all_song_name_containing_tags(load_folder, tags):
+    tag_map = get_sid_to_tags_map_from_catalog()
+    # check processed sound folders
+    # walk through the load_folder
+    song_buffer = []
+    for f in os.listdir(load_folder):
+        # check if f is in the right format
+        if f.count("__") != 2:
+            continue
+        sid = get_sid_from_file_name(f)
+        if sid not in tag_map:
+            continue
+        stags = set(tag_map[sid])
+        #check if two sets overlap
+        overlap = bool(set(tags) & stags)
+        if overlap:
+            song_buffer.append(f)
+    return song_buffer
+
+def get_sid_from_file_name(name):
+    s = name.split("__")
+    sid = s[0]
+    name = s[1]
+    return sid + "-" + name
+
+
+
+def get_sid_from_song_json(c):
+    #iget id
+    href = c['href']
+    l = href.split("/")
+    name, sid = l[2], l[-2]
+    return sid +"-"+name
+
+
+def get_sid_to_tags_map_from_catalog():
+    cata = Download_Worker.read_catalog()
+    tag_map = {}
+    for c in cata:
+        sid = get_sid_from_song_json(c)
+        tags = c['tags']
+        # make it a set to check overlapping
+        tag_map[sid] = tags
+        # print(sid)
+    return tag_map
+
+
+
+def get_id_from_sound_name(sound_name):
+    # sound names are standardized as name
+    if not "__" in name:
+        return None
+
 
 if __name__ == "__main__":
     # try to see how different merge methods produce
@@ -275,4 +330,5 @@ if __name__ == "__main__":
     # s2 = "processed_sound_inputs/149196__lmartins__asakusa-religious-cerimony.wav"
     # test_overlay_multiple()
 
-    algo1_evaluate(5)
+    sb = load_song_name_containing_tags("processed_sound_inputs", ["shaker"])
+    print(sb)
