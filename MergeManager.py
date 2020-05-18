@@ -9,6 +9,7 @@ import random
 from pydub.playback import play
 import logging
 from copy import deepcopy
+import shutil
 
 from Music_downloader import Download_Worker
 
@@ -173,24 +174,28 @@ def load_k_songs(k):
 
 # make this a simulation
 def algo1_evaluate(cur_id):
+    slist = load_k_songs(8)
+
+
+def run_merge_algorithm1(slist, cur_id=0, in_max_duration=30000):
+    ## save all evaluations to the simulations folder
     if not os.path.exists("simulations"):
         os.mkdir("simulations")
     new_dir = f"simulations/{cur_id}"
-    if not os.path.exists(new_dir):
-        os.mkdir(new_dir)
+    if os.path.exists(new_dir):
+        shutil.rmtree(new_dir)
+    os.mkdir(new_dir)
 
-    max_duration = 30000 # in ms
-    slist = load_k_songs(8)
+    max_duration = in_max_duration # in ms
     #first load all songs
-    print(slist)
+    print(f"input song list is {slist}")
     loaded_s = []
     for s in slist:
         song = AudioSegment.from_wav(s)
-        print(len(song)/1000.0)
+        print(f" {s} duration is {len(song)/1000.0}")
         if len(song) > max_duration:
             song = song[:max_duration]
         loaded_s.append(song)
-
 
     # merge the songs one by one
     merged_song = loaded_s[0]
@@ -211,7 +216,6 @@ def algo1_evaluate(cur_id):
     fade_in_seconds = 2
     fade_out_seconds = 3
     merged_song = merged_song.fade_in(fade_in_seconds*1000).fade_out(fade_out_seconds*1000)
-
     print(f"output length is {merged_song.duration_seconds}")
     # save the output
     merged_song.export("merge_algo1.wav", format="wav")
@@ -286,7 +290,7 @@ def load_all_song_name_containing_tags(load_folder, tags):
         #check if two sets overlap
         overlap = bool(set(tags) & stags)
         if overlap:
-            song_buffer.append(f)
+            song_buffer.append(os.path.join(load_folder, f))
     return song_buffer
 
 def get_sid_from_file_name(name):
@@ -294,7 +298,6 @@ def get_sid_from_file_name(name):
     sid = s[0]
     name = s[1]
     return sid + "-" + name
-
 
 
 def get_sid_from_song_json(c):
@@ -324,11 +327,21 @@ def get_id_from_sound_name(sound_name):
         return None
 
 
+def run_merge_algo_with_tags(tags, multiply=10):
+    song_names = load_all_song_name_containing_tags("processed_sound_inputs",tags)
+    print(f"loaded {len(song_names)} sounds")
+    # randomly select
+    multiply = min(len(song_names), multiply)
+    print(f"multiply factor is {multiply}")
+    selected = np.random.choice(song_names, multiply, replace=False)
+    run_merge_algorithm1(selected)
+
+
 if __name__ == "__main__":
     # try to see how different merge methods produce
     # s1 = "processed_sound_inputs/animal-market.wav"
     # s2 = "processed_sound_inputs/149196__lmartins__asakusa-religious-cerimony.wav"
     # test_overlay_multiple()
 
-    sb = load_song_name_containing_tags("processed_sound_inputs", ["shaker"])
-    print(sb)
+    # sb = load_song_name_containing_tags("processed_sound_inputs", ["shaker"])
+    run_merge_algo_with_tags(['shaker', 'tokyo', 'train'])
